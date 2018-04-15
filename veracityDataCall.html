@@ -1,0 +1,52 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <script type="text/javascript" src="js/jquery-2.1.4.min.js"></script>
+  <script type="text/javascript" src="js/d3.min.js"></script>
+  <title>lrsDataCall</title>
+
+  <script type="text/javascript">
+    // Basic example of pulling data from the LRS
+    window.onload = function() {
+
+      var URL = 'https://videocohort.lrs.io/xapi';
+
+      var pipeline = [{
+        "$match": {
+          "statement.verb.display.en-US": "viewed",
+          "voided": false
+        }
+      }];
+
+      $.ajaxSetup({
+        type: "GET",
+        beforeSend: function(xhr) {
+          xhr.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + password));
+        },
+        data: {
+          pipeline: JSON.stringify(pipeline)
+        }
+      });
+
+      $.ajax({
+        dataType: "json",
+        url: URL,
+        success: success
+      });
+    }
+
+    function success(e) {
+      $('#result').html('File Loaded!');
+      console.log(JSON.stringify(e.result));
+    }
+  </script>
+
+</head>
+
+<body>
+  <div id="result"></div>
+</body>
+
+</html>
