@@ -11,7 +11,7 @@
     // Basic example of pulling data from the LRS
     window.onload = function() {
 
-      var URL = 'https://videocohort.lrs.io/xapi';
+      var URL = 'https://videocohort.lrs.io/xapi/statements/aggregate';
 
       var pipeline =
       [
@@ -39,13 +39,16 @@
       ];
 
       $.ajaxSetup({
-        type: "GET",
+        type: "POST",
         beforeSend: function(xhr) {
           xhr.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + password));
+          xhr.setRequestHeader("X-Experience-API-Version", "1.0.0");
+          
         },
-        data: {
-          pipeline: JSON.stringify(pipeline)
-        }
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+        data: JSON.stringify(pipeline)
+        
       });
 
       $.ajax({
