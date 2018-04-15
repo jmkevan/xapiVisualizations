@@ -43,12 +43,12 @@
         beforeSend: function(xhr) {
           xhr.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + password));
           xhr.setRequestHeader("X-Experience-API-Version", "1.0.0");
-          
+
         },
         contentType: "application/json; charset=utf-8",
         dataType: "json",
         data: JSON.stringify(pipeline)
-        
+
       });
 
       $.ajax({
@@ -60,7 +60,7 @@
 
     function success(e) {
       $('#result').html('File Loaded!');
-      console.log(JSON.stringify(e.result));
+      console.log(e);
     }
   </script>
 
