@@ -1,0 +1,83 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <script type="text/javascript" src="../js/jquery-2.1.4.min.js"></script>
+  <script type="text/javascript" src="../js/d3.min.js"></script>
+  <title>lrsDataCall</title>
+
+  <script type="text/javascript">
+    // Basic example of pulling data from the LRS
+    window.onload = function() {
+
+      let username = "",
+        password = "";
+      let URL = 'https://videocohort.lrs.io/xapi/statements/aggregate';
+
+      var pipeline = [{
+        $match: {
+          $and: [{
+              "statement.context.contextActivities.category.id": "https://w3id.org/xapi/scorm"
+            }, // Grab only SCORM Profile compliant statements
+            {
+              "statement.context.contextActivities.parent.id": "https://jhaag75.github.io/xapi-cohort-video/quizes/gimpQuiz.html"
+            } // Targeting specific quiz
+          ]
+        }
+      }, {
+        $group: {
+          _id: {
+            "quizQuestion": "$statement.object.id"
+          },
+          question: {
+            $last: "$statement.object.definition.description.en-US"
+          },
+          choices: {
+            $last: "$statement.object.definition.choices"
+          },
+          correct: {
+            $last: "$statement.object.definition.correctResponsesPattern"
+          },
+          answers : {
+            $push: "$statement.result.response"
+          },
+          quizName : {
+            $last: "$statement.context.contextActivities.parent.definition.name.en-US"
+          }
+        }
+      }];
+
+      $.ajaxSetup({
+        type: "POST",
+        beforeSend: function(xhr) {
+          xhr.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + password));
+          xhr.setRequestHeader("X-Experience-API-Version", "1.0.0");
+
+        },
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+        data: JSON.stringify(pipeline)
+
+      });
+
+      $.ajax({
+        dataType: "json",
+        url: URL,
+        success: success
+      });
+    }
+
+    function success(e) {
+      $('#result').html('File Loaded!');
+      console.log(e);
+    }
+  </script>
+
+</head>
+
+<body>
+  <div id="result"></div>
+</body>
+
+</html>
