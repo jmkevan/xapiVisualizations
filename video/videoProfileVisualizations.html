@@ -11,46 +11,122 @@
     // Basic example of pulling data from the LRS
     window.onload = function() {
 
+      function escape(str) {
+        return str.replace(/\./g, '*`*');
+      }
+
       let username = "",
-          password = "";
+        password = "";
       let URL = 'https://videocohort.lrs.io/xapi/statements/aggregate';
 
       let playedSegments = escape("https://w3id.org/xapi/video/extensions/played-segments");
       let sessionId = escape("https://w3id.org/xapi/video/extensions/session-id");
 
-      var pipeline =
-      [
-        {
+      var pipeline = [{
           $match: {
-            "statement.context.contextActivities.category.id":"https://w3id.org/xapi/video"
+            $and: [{
+                "statement.context.contextActivities.category.id": "https://w3id.org/xapi/video" // Filter to video profile compliant statements
+              },
+              {
+                ["statement.result.extensions." + playedSegments]: {
+                  $exists: true
+                }
+              }
+            ]
           }
-        }/*, {
-          $match: {
-            ["statement.result.extensions." + playedSegments] : {
-              $exists : true
+        },
+        {
+          //Group by the object, since we don't want a histogram combining all videos
+          $group: {
+            _id: {
+              session: "$statement.context.extensions." + sessionId, //This is tricky - we group by the session as well as the
+              //object. This is because there can be dupliate data in the
+              //played segments for statements that are not the last in the
+              //last statement of the session.
+              object: "$statement.object.id"
+            },
+            title: {
+              $last: "$statement.object.definition.name" //grab the name, but don't group by it, since the same object id
+              //could have several names.  This is good pratice in general.
+            },
+            segments: {
+              $last: "$statement.result.extensions." + playedSegments //Use the played segments from the last statement in the session
+              //note that we sorted by date previously
+            }
+
+          }
+        },
+        //Use a string split operator to start breaking out the segements
+        {
+          $project: {
+            title: "$title",
+            segments: {
+              $split: ["$segments", "[,]"]
             }
           }
-        }*/
+        },
+        //Unwind by segments. Now we have an array of docs, each with one segment
+        {
+          $unwind: "$segments"
+        },
+        //split that single segment string into values
+        {
+          $project: {
+            title: "$title",
+            segments: {
+              $split: ["$segments", "[.]"]
+            }
+          }
+        },
+        //There seems to be some weird data in here, where the segments length is 0. Remove where start and end are the same.
+        {
+          $redact: {
+            $cond: {
+              if: {
+                $eq: [{
+                  $arrayElemAt: ["$segments", 0]
+                }, {
+                  $arrayElemAt: ["$segments", 1]
+                }]
+              },
+              then: "$$PRUNE",
+              else: "$$KEEP"
+            }
+          }
+        },
+        //group up by the object id. Note that we drop the segment data here, because we actually want a histogram of all sessions
+        //on a given video. We could group back including the session if we wanted a big list of histograms, one for each session.
+        {
+          $group: {
+            _id: "$_id.object",
+            title: {
+              $last: "$title" //just keep carrying along the title
+            },
+            segments: {
+              $push: "$segments" //now we have one big list of start/stop pairs for each video
+            }
+          }
+        }
       ];
 
-      $.ajaxSetup({
-        type: "POST",
-        beforeSend: function(xhr) {
-          xhr.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + password));
-          xhr.setRequestHeader("X-Experience-API-Version", "1.0.0");
+    $.ajaxSetup({
+      type: "POST",
+      beforeSend: function(xhr) {
+        xhr.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + password));
+        xhr.setRequestHeader("X-Experience-API-Version", "1.0.0");
 
-        },
-        contentType: "application/json; charset=utf-8",
-        dataType: "json",
-        data: JSON.stringify(pipeline)
+      },
+      contentType: "application/json; charset=utf-8",
+      dataType: "json",
+      data: JSON.stringify(pipeline)
 
-      });
+    });
 
-      $.ajax({
-        dataType: "json",
-        url: URL,
-        success: success
-      });
+    $.ajax({
+      dataType: "json",
+      url: URL,
+      success: success
+    });
     }
 
     function success(e) {
