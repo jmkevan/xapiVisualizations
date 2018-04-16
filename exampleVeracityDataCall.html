@@ -1,0 +1,76 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <script type="text/javascript" src="js/jquery-2.1.4.min.js"></script>
+  <script type="text/javascript" src="js/d3.min.js"></script>
+  <title>lrsDataCall</title>
+
+  <script type="text/javascript">
+    // Basic example of pulling data from the LRS
+    window.onload = function() {
+
+      var username = "", // Enter or pass LRS username here
+          password = ""; // Enter or pass LRS password here
+
+      var URL = 'https://videocohort.lrs.io/xapi/statements/aggregate'; // Enter URL to your LRS end point here. See Readme.
+
+      var pipeline =
+      [
+        {
+          $match: {
+            "statement.verb.display.en-US":"played"
+          }
+        },
+        {
+          $group : {
+            _id : "$statement.actor.mbox",
+            count: {$sum:1}
+          },
+        },
+        {
+          $sort : {"count" : 1}
+        },
+        {
+          $project : {
+            _id : 0,
+            name : "$_id",
+            count : "$count"
+          }
+        }
+      ];
+
+      $.ajaxSetup({
+        type: "POST",
+        beforeSend: function(xhr) {
+          xhr.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + password));
+          xhr.setRequestHeader("X-Experience-API-Version", "1.0.0");
+
+        },
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+        data: JSON.stringify(pipeline)
+
+      });
+
+      $.ajax({
+        dataType: "json",
+        url: URL,
+        success: success
+      });
+    }
+
+    function success(e) {
+      $('#result').html('File Loaded!');
+      console.log(e);
+    }
+  </script>
+
+</head>
+
+<body>
+  <div id="result"></div>
+</body>
+
+</html>
