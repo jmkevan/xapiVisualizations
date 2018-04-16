@@ -1,0 +1,24 @@
+.visHeader {
+  fill: blue;
+}
+
+.visItem {
+  fill: lightgreen;
+}
+
+.visQuestion {
+  font-size: 1em;
+  font-family: "Gibson","Helvetica",Arial,sans-serif;
+}
+
+.visQuestionBg {
+  fill: orange;
+}
+
+.visAnswer.correct {
+  fill: blue;
+}
+
+.visAnswer.incorrect {
+  fill: gray;
+}

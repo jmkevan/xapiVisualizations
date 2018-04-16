@@ -3,6 +3,7 @@
 
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <link rel="stylesheet" type="text/css" href="../css/assessments/quiz.css" />
   <script type="text/javascript" src="../js/jquery-2.1.4.min.js"></script>
   <script type="text/javascript" src="../js/d3.min.js"></script>
   <title>lrsDataCall</title>
@@ -28,7 +29,7 @@
       }, {
         $group: {
           _id: {
-            "quizQuestion": "$statement.object.id"
+            "quizQuestion": "$statement.object.definition.name.en-US"
           },
           question: {
             $last: "$statement.object.definition.description.en-US"
@@ -39,10 +40,10 @@
           correct: {
             $last: "$statement.object.definition.correctResponsesPattern"
           },
-          answers : {
+          answers: {
             $push: "$statement.result.response"
           },
-          quizName : {
+          quizName: {
             $last: "$statement.context.contextActivities.parent.definition.name.en-US"
           }
         }
@@ -64,20 +65,84 @@
       $.ajax({
         dataType: "json",
         url: URL,
-        success: success
+        success: assessmentVis
       });
     }
 
-    function success(e) {
-      $('#result').html('File Loaded!');
+    function assessmentVis(e) {
       console.log(e);
+
+      // Create body select and site header
+      const body = d3.select(".title");
+      body.html(e[0].quizName[0]);
+
+      // Some default size parameters
+      const visHeaderHeight = 100,
+            visItemHeight = 30;
+
+      // Create SVG selector for the visualization and default parameters
+      const svg = d3.select("svg"),
+      margin = { top: 10, right: 50, bottom: 50, left: 50 };
+
+      svg.attr("width", 960)
+          .attr("height", function(){
+            return visHeaderHeight + (visItemHeight * e.length) + margin.top + margin.bottom;
+          })
+
+      const width = +svg.attr("width") - margin.left - margin.right,
+      height = +svg.attr("height") - margin.top - margin.bottom,
+      vis = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      // Start Visualization
+      const visHeader = vis.append("rect")
+        .attr("width", width)
+        .attr("height", visHeaderHeight)
+        .classed("visHeader", true);
+
+      const visQuestions = vis.append("g")
+        .attr("width", width)
+        .attr("height", function(){
+          return e.length * visItemHeight;
+        })
+        .attr("transform", "translate(0," + visHeaderHeight + ")")
+        .classed("visQuestions", true);
+
+      const visQuestion = visQuestions.selectAll("g")
+        .data(e)
+        .enter()
+        .append("rect")
+          .attr("width", width)
+          .attr("height", visItemHeight)
+          .attr("y", function(d,i){
+            return (i * visItemHeight);
+          })
+          .classed("visItem", true);
+/*
+      visQuestions.each(function(d) {
+          const questionContainer = d3.select(this).append("g")
+              .attr("width", 30)
+              .attr("height", visItemHeight);
+
+          questionContainer.append("rect")
+              .attr("width", 30)
+              .attr("height", visItemHeight)
+              .classed("visQuestionBg")
+
+          questionContainer.append("text")
+              .attr("y", 15)
+              .attr("x", 5)
+              .text("text")
+              .classed("visQuestion");
+        });
+*/
     }
   </script>
 
 </head>
 
 <body>
-  <div id="result"></div>
+  <h1 class="title"></h1>
+  <svg></svg>
 </body>
 
 </html>
