@@ -149,13 +149,46 @@
           .attr("y", (i * visItemHeight) + 15);
 
         // Add response rects
+        // Count number of responses, sort by count but make correct answer first
+        const sortedAnswers = processAnswers(d.choices, d.answers, d.correct);
+
+        // Draw rects
         const answerStep = answersWidth / d.answers.length;
-        let countedAnswers = d.answers.sort().reduce((n, val) => {
+
+      });
+
+      function processAnswers(choices, answers, correctChoice) {
+
+        // Count number of answers given for each option
+        let countedAnswers = answers.sort().reduce((n, val) => {
           n[val] = (n[val] || 0) + 1;
           return n;
         }, {});
 
-      });
+        for (x = 0; x < choices.length; x++) {
+          choices[x].count = (countedAnswers[choices[x].id] !== undefined) ? countedAnswers[choices[x].id] : 0;
+        }
+
+        // Sort by number of responses
+        choices.sort(function(a,b) {
+          if (a.count > b.count)
+            return 1;
+          if (a.count < b.count)
+            return -1;
+          return 0;
+        });
+
+        // Move correct answer to the front
+        for (y = 0; y < choices.length; y++) {
+          if (choices[y].id == correctChoice) {
+            const temp = choices.splice(y,1);
+            choices.unshift(temp[0]);
+            break;
+          }
+        }
+
+        return choices;
+      }
     }
   </script>
 
