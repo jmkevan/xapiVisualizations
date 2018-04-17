@@ -70,7 +70,6 @@
     }
 
     function assessmentVis(e) {
-      console.log(e);
 
       // Create body select and site header
       const body = d3.select(".title");
@@ -78,63 +77,85 @@
 
       // Some default size parameters
       const visHeaderHeight = 100,
-            visItemHeight = 30;
+        visItemHeight = 30;
 
       // Create SVG selector for the visualization and default parameters
       const svg = d3.select("svg"),
-      margin = { top: 10, right: 50, bottom: 50, left: 50 };
+        margin = {
+          top: 10,
+          right: 50,
+          bottom: 50,
+          left: 50
+        };
 
       svg.attr("width", 960)
-          .attr("height", function(){
-            return visHeaderHeight + (visItemHeight * e.length) + margin.top + margin.bottom;
-          })
+        .attr("height", function() {
+          return visHeaderHeight + (visItemHeight * e.length) + margin.top + margin.bottom;
+        })
 
       const width = +svg.attr("width") - margin.left - margin.right,
-      height = +svg.attr("height") - margin.top - margin.bottom,
-      vis = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+        height = +svg.attr("height") - margin.top - margin.bottom,
+        vis = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
       // Start Visualization
+      // Create Header
       const visHeader = vis.append("rect")
         .attr("width", width)
         .attr("height", visHeaderHeight)
         .classed("visHeader", true);
 
+      // Container element for all questions
       const visQuestions = vis.append("g")
         .attr("width", width)
-        .attr("height", function(){
+        .attr("height", function() {
           return e.length * visItemHeight;
         })
         .attr("transform", "translate(0," + visHeaderHeight + ")")
         .classed("visQuestions", true);
 
+      // Create background rect for all questions
+      visQuestions.append("rect")
+        .attr("width", width)
+        .attr("height", function() {
+          return e.length * visItemHeight;
+        })
+        .classed("visQuestionBg", true);
+
+      // Create container elements for data on each question
       const visQuestion = visQuestions.selectAll("g")
         .data(e)
         .enter()
-        .append("rect")
-          .attr("width", width)
-          .attr("height", visItemHeight)
-          .attr("y", function(d,i){
-            return (i * visItemHeight);
-          })
-          .classed("visItem", true);
-/*
-      visQuestions.each(function(d) {
-          const questionContainer = d3.select(this).append("g")
-              .attr("width", 30)
-              .attr("height", visItemHeight);
+        .append("g")
+        .attr("width", width)
+        .attr("height", visItemHeight)
+        .attr("y", function(d, i) {
+          return (i * visItemHeight);
+        })
+        .classed("visItem", true);
 
-          questionContainer.append("rect")
-              .attr("width", 30)
-              .attr("height", visItemHeight)
-              .classed("visQuestionBg")
+      // Go through each container and add the question text and responses
+      let questionWidth = width * .25;
+      let answersWidth = width * .75;
 
-          questionContainer.append("text")
-              .attr("y", 15)
-              .attr("x", 5)
-              .text("text")
-              .classed("visQuestion");
-        });
-*/
+      visQuestion.each(function(d, i) {
+        console.log(d);
+
+        // Question text
+        // ADD LABEL WRAPPING, EXAMPLE: https://bl.ocks.org/mbostock/7555321
+        d3.select(this).append("text")
+          .text(d.question)
+          .classed("visQuestion", true)
+          .attr("x", 5)
+          .attr("y", (i * visItemHeight) + 15);
+
+        // Add response rects
+        const answerStep = answersWidth / d.answers.length;
+        let countedAnswers = d.answers.sort().reduce((n, val) => {
+          n[val] = (n[val] || 0) + 1;
+          return n;
+        }, {});
+
+      });
     }
   </script>
 

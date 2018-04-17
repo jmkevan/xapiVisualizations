@@ -7,8 +7,10 @@
 }
 
 .visQuestion {
-  font-size: 1em;
+  font-size: .75em;
   font-family: "Gibson","Helvetica",Arial,sans-serif;
+  fill: black;
+
 }
 
 .visQuestionBg {
