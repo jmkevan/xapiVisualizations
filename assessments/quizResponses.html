@@ -150,10 +150,10 @@
         const sortedAnswers = processAnswers(d.choices, d.answers, d.correct);
 
         // Draw rects
-        const answerStep = answersWidth / d.answers.length;
+        const sum = sortedAnswers.reduce((a,b) => ({count: a.count + b.count}));
+        const answerStep = answersWidth / sum.count;
         let nextPosition = questionWidth;
 
-        console.log(sortedAnswers);
 
         d3.select(this).selectAll("rect")
           .data(sortedAnswers)
@@ -206,12 +206,13 @@
             d3.select(this).attr("stroke", "none");
           });
 
-        d3.select(this).append("text")
+        let textHolder = d3.select(this).append("text")
           .text(d["_id"].quizQuestion)
           .classed("visQuestion", true)
-          .attr("x", 7)
+          .attr("x", function(){
+            return (questionWidth - d3.select(this).node().getBBox().width)/2;
+          })
           .attr("y", (i * visItemHeight) + 20);
-
       });
 
       function processAnswers(choices, answers, correctChoice) {
