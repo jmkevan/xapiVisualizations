@@ -7,272 +7,376 @@
   <script type="text/javascript" src="../js/jquery-2.1.4.min.js"></script>
   <script type="text/javascript" src="../js/d3.min.js"></script>
   <title>lrsDataCall</title>
-
-  <script type="text/javascript">
-    // Basic example of pulling data from the LRS
-    window.onload = function() {
-
-      let username = "",
-        password = "";
-      let URL = 'https://videocohort.lrs.io/xapi/statements/aggregate';
-
-      var pipeline = [{
-        $match: {
-          $and: [{
-              "statement.context.contextActivities.category.id": "https://w3id.org/xapi/scorm"
-            }, // Grab only SCORM Profile compliant statements
-            {
-              "statement.context.contextActivities.parent.id": "https://jhaag75.github.io/xapi-cohort-video/quizes/gimpQuiz.html"
-            } // Targeting specific quiz
-          ]
-        }
-      }, {
-        $group: {
-          _id: {
-            "quizQuestion": "$statement.object.definition.name.en-US"
-          },
-          question: {
-            $last: "$statement.object.definition.description.en-US"
-          },
-          choices: {
-            $last: "$statement.object.definition.choices"
-          },
-          correct: {
-            $last: "$statement.object.definition.correctResponsesPattern"
-          },
-          answers: {
-            $push: "$statement.result.response"
-          },
-          quizName: {
-            $last: "$statement.context.contextActivities.parent.definition.name.en-US"
-          }
-        }
-      }];
-
-      $.ajaxSetup({
-        type: "POST",
-        beforeSend: function(xhr) {
-          xhr.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + password));
-          xhr.setRequestHeader("X-Experience-API-Version", "1.0.0");
-
-        },
-        contentType: "application/json; charset=utf-8",
-        dataType: "json",
-        data: JSON.stringify(pipeline)
-
-      });
-
-      $.ajax({
-        dataType: "json",
-        url: URL,
-        success: assessmentVis
-      });
-    }
-
-    function assessmentVis(e) {
-
-      // Order data prior to visualizations
-      orderByQuestion(e);
-
-      // Create body select, tooltip and site header
-      const body = d3.select("body");
-      const tooltip = body.append("div").attr("class", "toolTip");
-      d3.select(".title").html(e[0].quizName[0]);
-
-
-      // Some default size parameters
-      const visHeaderHeight = 100,
-        visItemHeight = 30;
-
-      // Create SVG selector for the visualization and default parameters
-      const svg = d3.select("svg"),
-        margin = {
-          top: 10,
-          right: 50,
-          bottom: 50,
-          left: 50
-        };
-
-      svg.attr("width", 960)
-        .attr("height", function() {
-          return visHeaderHeight + (visItemHeight * e.length) + margin.top + margin.bottom;
-        })
-
-      const width = +svg.attr("width") - margin.left - margin.right,
-        height = +svg.attr("height") - margin.top - margin.bottom,
-        vis = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
-      // Start Visualization
-      // Create Header
-      const visHeader = vis.append("rect")
-        .attr("width", width)
-        .attr("height", visHeaderHeight)
-        .classed("visHeader", true);
-
-      // Container element for all questions
-      const visQuestions = vis.append("g")
-        .attr("width", width)
-        .attr("height", function() {
-          return e.length * visItemHeight;
-        })
-        .attr("transform", "translate(0," + visHeaderHeight + ")")
-        .classed("visQuestions", true);
-
-      // Create background rect for all questions
-      visQuestions.append("rect")
-        .attr("width", width)
-        .attr("height", function() {
-          return e.length * visItemHeight;
-        })
-        .classed("visQuestionBg", true);
-
-      // Create container elements for data on each question
-      const visQuestion = visQuestions.selectAll("g")
-        .data(e)
-        .enter()
-        .append("g")
-        .attr("width", width)
-        .attr("height", visItemHeight)
-        .attr("y", function(d, i) {
-          return (i * visItemHeight);
-        })
-        .classed("visItem", true);
-
-      // Go through each container and add the question text and responses
-      let questionWidth = 100;
-      let answersWidth = width - questionWidth;
-
-      visQuestion.each(function(d, i) {
-        console.log(d);
-
-        // Add response rects
-        // Count number of responses, sort by count but make correct answer first
-        const sortedAnswers = processAnswers(d.choices, d.answers, d.correct);
-
-        // Draw rects
-        const sum = sortedAnswers.reduce((a,b) => ({count: a.count + b.count}));
-        const answerStep = answersWidth / sum.count;
-        let nextPosition = questionWidth;
-
-
-        d3.select(this).selectAll("rect")
-          .data(sortedAnswers)
-          .enter()
-          .append("rect")
-          .attr("width", function(d) {
-            return d.count * answerStep;
-          })
-          .attr("height", visItemHeight)
-          .attr("y", (i * visItemHeight))
-          .attr("x", function(d, i) {
-            let currentPos = nextPosition;
-            nextPosition = currentPos + (d.count * answerStep);
-            return currentPos;
-          })
-          .attr("class", function(d, i) {
-            return (i === 0) ? "visAnswer correct" : "visAnswer incorrect";
-          })
-          .on("mousemove", function(d) {
-            d3.select(this).attr("stroke", "black");
-            tooltip
-              .style("left", d3.event.pageX - 50 + "px")
-              .style("top", d3.event.pageY - 70 + "px")
-              .style("display", "inline-block")
-              .html("<p>" + d.description["en-US"] + "</p>");
-          })
-          .on("mouseout", function(d, i) {
-            tooltip.style("display", "none");
-            d3.select(this).attr("stroke", "none");
-          });
-
-
-        // Question background and text
-        // ADD LABEL WRAPPING, EXAMPLE: https://bl.ocks.org/mbostock/7555321
-        d3.select(this).append("rect")
-          .attr("width", questionWidth)
-          .attr("height", visItemHeight)
-          .attr("y", (i * visItemHeight))
-          .classed("visQuestionBg", true)
-          .on("mousemove", function(d) {
-            d3.select(this).attr("stroke", "black");
-            tooltip
-              .style("left", d3.event.pageX - 50 + "px")
-              .style("top", d3.event.pageY - 70 + "px")
-              .style("display", "inline-block")
-              .html("<p>" + d.question + "</p>");
-          })
-          .on("mouseout", function(d, i) {
-            tooltip.style("display", "none");
-            d3.select(this).attr("stroke", "none");
-          });
-
-        let textHolder = d3.select(this).append("text")
-          .text(d["_id"].quizQuestion)
-          .classed("visQuestion", true)
-          .attr("x", function(){
-            return (questionWidth - d3.select(this).node().getBBox().width)/2;
-          })
-          .attr("y", (i * visItemHeight) + 20);
-      });
-
-      function processAnswers(choices, answers, correctChoice) {
-
-        // Count number of answers given for each option
-        let countedAnswers = answers.sort().reduce((n, val) => {
-          n[val] = (n[val] || 0) + 1;
-          return n;
-        }, {});
-
-        for (x = 0; x < choices.length; x++) {
-          choices[x].count = (countedAnswers[choices[x].id] !== undefined) ? countedAnswers[choices[x].id] : 0;
-        }
-
-        // Sort by number of responses
-        choices.sort(function(a, b) {
-          if (a.count > b.count)
-            return 1;
-          if (a.count < b.count)
-            return -1;
-          return 0;
-        });
-
-        // Move correct answer to the front
-        for (y = 0; y < choices.length; y++) {
-          if (choices[y].id == correctChoice) {
-            const temp = choices.splice(y, 1);
-            choices.unshift(temp[0]);
-            break;
-          }
-        }
-
-        return choices;
-      }
-    }
-
-    function orderByQuestion(data) {
-
-      var temp = data.sort(function(a, b) {
-
-        const aNum = +a["_id"].quizQuestion.replace(/\D/g, '');
-        const bNum = +b["_id"].quizQuestion.replace(/\D/g, '');
-
-        if (aNum > bNum)
-          return 1;
-        if (aNum < bNum)
-          return -1;
-        return 0;
-
-      });
-
-      return data;
-    }
-  </script>
-
 </head>
 
 <body>
   <h1 class="title"></h1>
-  <svg></svg>
+
+  <svg xmlns="http://www.w3.org/2000/svg" version="1.1" id="assessment">
+    <!-- Pattern for assessment visualization -->
+    <defs>
+      <pattern id="hash4_4" width="6" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="3" height="8" transform="translate(0,0)" class="hashColor"></rect>
+        <rect width="3" height="8" transform="translate(3,0)" class="middleColor"></rect>
+      </pattern>
+      <filter id="blurFilter2" y="-100%" x="-100%" height="300%" width="300%">
+        <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+        <feOffset dx="0" dy="0" result="offsetblur"/>
+        <feFlood flood-color="#000000"/>
+        <feComposite in2="offsetblur" operator="in"/>
+        <feMerge>
+          <feMergeNode/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+  </svg>
+
 </body>
+
+<script type="text/javascript">
+  // Basic example of pulling data from the LRS
+  window.onload = function() {
+
+    let username = "",
+      password = "";
+    let URL = 'https://videocohort.lrs.io/xapi/statements/aggregate';
+
+    var pipeline = [{
+      $match: {
+        $and: [{
+            "statement.context.contextActivities.category.id": "https://w3id.org/xapi/scorm"
+          }, // Grab only SCORM Profile compliant statements
+          {
+            "statement.context.contextActivities.parent.id": "https://jhaag75.github.io/xapi-cohort-video/quizes/gimpQuiz.html"
+          } // Targeting specific quiz
+        ]
+      }
+    }, {
+      $group: {
+        _id: {
+          "quizQuestion": "$statement.object.definition.name.en-US"
+        },
+        question: {
+          $last: "$statement.object.definition.description.en-US"
+        },
+        choices: {
+          $last: "$statement.object.definition.choices"
+        },
+        correct: {
+          $last: "$statement.object.definition.correctResponsesPattern"
+        },
+        answers: {
+          $push: "$statement.result.response"
+        },
+        quizName: {
+          $last: "$statement.context.contextActivities.parent.definition.name.en-US"
+        }
+      }
+    }];
+
+    $.ajaxSetup({
+      type: "POST",
+      beforeSend: function(xhr) {
+        xhr.setRequestHeader("Authorization", "Basic " + btoa(username + ":" + password));
+        xhr.setRequestHeader("X-Experience-API-Version", "1.0.0");
+
+      },
+      contentType: "application/json; charset=utf-8",
+      dataType: "json",
+      data: JSON.stringify(pipeline)
+
+    });
+
+    $.ajax({
+      dataType: "json",
+      url: URL,
+      success: assessmentVis
+    });
+  }
+
+  function assessmentVis(e) {
+
+    // Order data prior to visualizations
+    orderByQuestion(e);
+    const numOfStudents = e[0].answers.length; // TEMP VARIABLE.. will need to be replaced by WP value
+
+    // Create body select, tooltip and site header
+    const body = d3.select("body");
+    const tooltip = body.append("div").attr("class", "toolTip");
+    d3.select(".title").html(e[0].quizName[0]);
+
+    // Some default size parameters
+    const visHeaderHeight = 20,
+      visItemHeight = 30,
+      visItemSpacing = 12;
+
+    // Create SVG selector for the visualization and default parameters
+    const svg = d3.select("#assessment"),
+      margin = {
+        top: 10,
+        right: 0, // IF THIS VALUE IS > 0 THE 'UNANSWERED' TEXT WILL NEED CLIPPING
+        bottom: 50,
+        left: 50
+      };
+
+    svg.attr("width", 700)
+      .attr("height", function() {
+        return visHeaderHeight + ((visItemHeight + visItemSpacing) * e.length) + margin.top + margin.bottom;
+      })
+
+    const width = +svg.attr("width") - margin.left - margin.right,
+      height = +svg.attr("height") - margin.top - margin.bottom,
+      vis = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    // Start Visualization
+    // Create Header
+    const visHeader = vis.append("rect")
+      .attr("width", width)
+      .attr("height", visHeaderHeight)
+      .classed("visHeader", true);
+
+    // Container element for all questions
+    const visQuestions = vis.append("g")
+      .attr("width", width)
+      .attr("height", function() {
+        return e.length * (visItemHeight + visItemHeight);
+      })
+      .attr("transform", "translate(0," + visHeaderHeight + ")")
+      .classed("visQuestions", true);
+
+    // Create background rect for all questions
+    visQuestions.append("rect")
+      .attr("width", width)
+      .attr("height", function() {
+        return e.length * (visItemHeight + visItemHeight);
+      })
+      .classed("visQuestionBg", true);
+
+    // Create container elements for data on each question
+    const visQuestion = visQuestions.selectAll("g")
+      .data(e)
+      .enter()
+      .append("g")
+      .attr("width", width)
+      .attr("height", visItemHeight)
+      .attr("y", function(d, i) {
+        return (i * (visItemHeight + visItemSpacing));
+      })
+      .classed("visItem", true);
+
+    // Go through each container and add the question text and responses
+    let questionWidth = 70;
+    let answersWidth = width - questionWidth;
+
+    // Use to make sure mouseover dropbox renders completely around d3 object
+    // Note that SVG v1.1 has no concept of z-index
+    d3.selection.prototype.moveToFront = function() {
+      return this.each(function() {
+        this.parentNode.appendChild(this);
+      });
+    };
+
+    d3.selection.prototype.moveToBack = function() {
+      return this.each(function() {
+        var firstChild = this.parentNode.firstChild;
+        if (firstChild) {
+          this.parentNode.insertBefore(this, firstChild);
+        }
+      });
+    };
+
+    visQuestion.each(function(d, i) {
+      // Add response rects
+      // Count number of responses, sort by count but make correct answer first
+      let numOfStudentsTemp = numOfStudents;
+      const sortedAnswers = processAnswers(d.choices, d.answers, d.correct);
+      const sum = sortedAnswers.reduce((a, b) => ({
+        count: a.count + b.count
+      }));
+      const answerStep = answersWidth / numOfStudents;
+      let nextRectPosition = questionWidth; // Set first position of answer rect after question number
+      let nextLinePosition = questionWidth;
+
+      // Answer Rects
+      d3.select(this).selectAll("rect")
+        .data(sortedAnswers)
+        .enter()
+        .append("rect")
+        .attr("width", function(d) {
+          numOfStudentsTemp = numOfStudentsTemp - d.count;
+          return d.count * answerStep;
+        })
+        .attr("height", visItemHeight)
+        .attr("y", (i * (visItemHeight + visItemSpacing)))
+        .attr("x", function(d, i) {
+          let currentPos = nextRectPosition;
+          nextRectPosition = currentPos + (d.count * answerStep);
+          return currentPos;
+        })
+        .style("fill", function(d, i) {
+          return (i === 0) ? "" : "url(#hash4_4)";
+        })
+        .attr("class", function(d, i) {
+          return (i === 0) ? "correct" : "";
+        })
+        .on("mousemove", function(d) {
+          d3.select(this).attr("filter", "url(#blurFilter2)");
+          tooltip.style("left", d3.event.pageX - 50 + "px")
+            .style("top", d3.event.pageY - 80 + "px")
+            .html("<p>" + d.description["en-US"] + "</p>");
+        })
+        .on("mouseenter", function() {
+          d3.select(this).moveToFront();
+
+          tooltip.transition().duration(100)
+            .style("opacity", 1);
+        })
+        .on("mouseout", function(d, i) {
+          d3.select(this).attr("filter", "");
+          d3.select(this).moveToBack();
+
+          tooltip.transition().duration(100)
+            .style("opacity", 0);
+        });
+
+      // Unanswered Rect & Text
+      if (numOfStudentsTemp > 0) {
+        d3.select(this)
+          .append("rect")
+          .attr("width", (numOfStudentsTemp * answerStep))
+          .attr("height", visItemHeight)
+          .attr("y", (i * (visItemHeight + visItemSpacing)))
+          .attr("x", (width - (numOfStudentsTemp * answerStep)))
+          .classed("unansweredRect", true);
+
+        d3.select(this)
+          .append("text")
+          .text("UNANSWERED")
+          .attr("width", (width - (numOfStudentsTemp * answerStep)))
+          .attr("height", visItemHeight)
+          .attr("y", (i * (visItemHeight + visItemSpacing)) + 20)
+          .attr("x", (width - (numOfStudentsTemp * answerStep)) + 8)
+          .classed("unansweredText", true);
+
+      }
+
+      // Question Rect & Text
+      d3.select(this).append("rect")
+        .attr("width", questionWidth)
+        .attr("height", visItemHeight)
+        .attr("y", (i * (visItemHeight + visItemSpacing)))
+        .classed("visQuestionBg", true)
+        .on("mousemove", function(d) {
+          d3.select(this).attr("filter", "url(#blurFilter2)");
+          tooltip.style("left", d3.event.pageX - 50 + "px")
+            .style("top", d3.event.pageY - 80 + "px")
+            .html("<p>" + d.question + "</p>");
+        })
+        .on("mouseenter", function() {
+
+          tooltip.transition().duration(100)
+            .style("opacity", 1);
+        })
+        .on("mouseout", function(d, i) {
+          d3.select(this).attr("filter", "");
+
+          tooltip.transition().duration(100)
+            .style("opacity", 0);
+        });
+
+      let textHolder = d3.select(this).append("text")
+        .text(d["_id"].quizQuestion.replace(/\D/g, ''))
+        .classed("visQuestion", true)
+        .attr("x", function() {
+          return (questionWidth - d3.select(this).node().getBBox().width) / 2 + 10;
+        })
+        .attr("y", (i * (visItemHeight + visItemSpacing)) + 22);
+
+      // Divider lines
+      d3.select(this).selectAll("line")
+        .data(function() {
+          let divArray = [];
+
+          for (x = 0; x < sortedAnswers.length; x++) {
+            if (sortedAnswers[x].count !== 0) {
+              divArray.push(sortedAnswers[x].count);
+            }
+          }
+
+          if (divArray.length > 1) {
+            for (y = 1; y < divArray.length; y++) {
+              divArray[y] = divArray[y] + divArray[y - 1];
+            }
+          }
+
+          return divArray;
+        })
+        .enter()
+        .append("line")
+        .attr("x1", function(d) {
+          return (d * answerStep) + questionWidth;
+        })
+        .attr("x2", function(d) {
+          return (d * answerStep) + questionWidth;
+        })
+        .attr("y1", (i * (visItemHeight + visItemSpacing)))
+        .attr("y2", (i * (visItemHeight + visItemSpacing)) + visItemHeight)
+        .classed("divider", true);
+
+    });
+
+    function processAnswers(choices, answers, correctChoice) {
+
+      // Count number of answers given for each option
+      let countedAnswers = answers.sort().reduce((n, val) => {
+        n[val] = (n[val] || 0) + 1;
+        return n;
+      }, {});
+
+      for (x = 0; x < choices.length; x++) {
+        choices[x].count = (countedAnswers[choices[x].id] !== undefined) ? countedAnswers[choices[x].id] : 0;
+      }
+
+      // Sort by number of responses
+      choices.sort(function(a, b) {
+        if (a.count > b.count)
+          return 1;
+        if (a.count < b.count)
+          return -1;
+        return 0;
+      });
+
+      // Move correct answer to the front
+      for (y = 0; y < choices.length; y++) {
+        if (choices[y].id == correctChoice) {
+          const temp = choices.splice(y, 1);
+          choices.unshift(temp[0]);
+          break;
+        }
+      }
+
+      return choices;
+    }
+  }
+
+  function orderByQuestion(data) {
+
+    var temp = data.sort(function(a, b) {
+
+      const aNum = +a["_id"].quizQuestion.replace(/\D/g, '');
+      const bNum = +b["_id"].quizQuestion.replace(/\D/g, '');
+
+      if (aNum > bNum)
+        return 1;
+      if (aNum < bNum)
+        return -1;
+      return 0;
+
+    });
+
+    return data;
+  }
+</script>
 
 </html>
